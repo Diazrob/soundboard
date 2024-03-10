@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, Text, View, Platform } from 'react-native';
+import { Pressable, Text, View, Platform, ScrollView, Button, FlatList } from 'react-native';
+import Constants from 'expo-constants'
 import * as SQLite from 'expo-sqlite';
 import styles from './styles/mystylesheet';
 import { useState, useEffect } from 'react';
@@ -7,24 +8,34 @@ import { Audio } from 'expo-av';
 import { SoundButton} from './components/soundButton';
 
 export default function App() {
+
+  //#region sound effect elements
   const sounds = [
     { localUri: require('./assets/soundeffects/separation.mp3'),label: "Song 1"},
     { localUri: require('./assets/soundeffects/crowdlaughing.wav'),label: "Laughing"},
     { localUri: require('./assets/soundeffects/dingdong.wav'),label: "Dingdong"},
-    { localUri: require('./assets/soundeffects/flutemusicnotif.wav'),label: "Notification"},
+    { localUri: require('./assets/soundeffects/flutemusicnotif.wav'),label: "Flute"},
     { localUri: require('./assets/soundeffects/monkeyapplause.wav'),label: "Applause"},
   ];
-  const [playbackStatus, setPlaybackStatus] = useState("Unloaded");
+  const [playbackStatus, setPlaybackStatus] = useState("Loaded");
   const [myPBO, setMyPBO] = useState(null);
-  const [individualPlaybackStatus, setIndividualPlaybackStatus] = useState(Array(sounds.length).fill('Unloaded'));
+  const [individualPlaybackStatus, setIndividualPlaybackStatus] = useState(Array(sounds.length).fill('Loaded'));
   const [soundObjects, setSoundObjects] = useState([]);
 
+  //#endregion
+  // #region recording elements
   const [db, setDb] = useState(null);
   const [updateItems, forceUpdate] = useState(null);
-  
+
+
   const [recordings, setRecordings] = useState([]);
-//#region database
-  // connect to the database
+  const [recordingUris, setRecordingUris] = useState([]);
+  const [playbacks, setPlaybacks] = useState([]);
+  const [permissionsResponse, requestPermission] = Audio.usePermissions();
+  //#endregion
+
+//#region connect to the database
+  
   // useEffect(() => {
   //   let db = null;
   //   if (Platform.OS === 'web') {
@@ -36,14 +47,14 @@ export default function App() {
   //       }
   //     }
   //   } else {
-  //     db = SQLite.openDatabase('mysounds.db');
+  //     db = SQLite.openDatabase('myrecordings.db');
   //   }
   //   setDb(db);
 
   //   // create tables if it doesn't exist.
   //   db.transaction((rd) => {
   //     rd.executeSql(
-  //       "create table if not exists recording (id integer primary key not null, item blob), title text;"
+  //       "create table if not exists recording (id integer primary key not null, item text);"
   //     ), 
   //       (_, error) => console.log(error),
   //       () => console.log("Recording table exists or was created")
@@ -59,7 +70,7 @@ export default function App() {
   //           rd.executeSql(
   //             "select * from recording",
   //             [],
-  //             (_,{rows}) => setRecordings(rows._array),
+  //             (_,{rows}) => setRecording(rows._array),
   //             (_,error) => console.log(error)
   //           ),
   //             (_,error) => console.log(error),
@@ -68,9 +79,105 @@ export default function App() {
   //     )
   //     }
   //   },[db, updateItems]);
+
+  //   const addRecording = (item) => {
+  //     db.transaction(
+  //       (sd) => {
+  //         sd.executeSql(
+  //             "insert into recording (item) values (?)",
+  //             [item],
+  //             () => console.log("added ", item), // if it work
+  //             (_,error) => console.log(error)     // if it doesn't work
+  //         )
+  //     },
+  //     (_,error) => console.log('addRecord() failed', error),
+  //     forceUpdate(f => f+1 )
+  //     )
+  //   }
 //#endregion
-    // add Sound
-  
+
+const startRecording = async () => {
+  try {
+    // request permission to use the mic
+    if (permissionsResponse.status !== 'granted') {
+      console.log('Requesting permissions.');
+      await requestPermission();
+    }
+    console.log('Permission is ', permissionsResponse.status);
+
+    // set some device specific values
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: true,
+      playsInSilentModeIOS: true,
+    });
+
+    console.log('Starting recording...');
+    const { recording } = await Audio.Recording.createAsync(
+      Audio.RecordingOptionsPresets.HIGH_QUALITY
+    );
+    setRecordings((prevRecordings) => [...prevRecordings, recording]);
+    console.log('...recording');
+  }
+  catch (errorEvent) {
+    console.error('Failed to startRecording(): ', errorEvent);
+  }
+}
+
+const stopRecording = async () => {
+  try {
+    if(recordings.length === 0) {
+      console.log('No recording to stop.');
+      return;
+    }
+
+    const lastRecording = recordings[recordings.length - 1];
+    // stop the actual recording
+    await lastRecording.stopAndUnloadAsync();
+
+    // save the recorded object location
+    const uri = lastRecording.getURI();
+
+    setRecordingUris((prevUris)=> [...prevUris,uri]);
+
+    // forget the recording object
+    setRecordings((prevRecordings) => prevRecordings.slice(0, -1));
+
+    // log the result
+    console.log('Recording stopped and stored at ', uri);
+  }
+  catch (errorEvent) {
+    console.error('Failed to stopRecording(): ', errorEvent);
+  }
+}
+
+const playRecording = async (index) => {
+  const { sound } = await Audio.Sound.createAsync({
+    uri: recordingUris[index],
+  });
+  setPlaybacks((prevPlaybacks) => [...prevPlaybacks,sound]);
+  await sound.replayAsync();
+  console.log('Playing recorded sound from ', recordingUris[index]);
+}
+
+// This effect hook will make sure the app stops recording when it ends
+useEffect(() => {
+  return () => {
+    recordings.forEach(async (recording) => {
+      await recording.stopAndUnloadAsync();
+    });
+  };
+}, []);
+
+// Effect hook to unload all playback sounds when the component unmounts
+useEffect(() => {
+  return () => {
+    playbacks.forEach(async (sound) => {
+      await sound.unloadAsync();
+    });
+  };
+}, []);
+
+//#region Sound Functions
     // load a Sound
     const loadSounds = async (index) => {
       try {
@@ -144,14 +251,16 @@ export default function App() {
           unloadSounds();
       };
     }, []);
-    
+    //#endregion
   return (
+    <ScrollView style={styles.scrollArea}>
+    {/* sound effect view */}
     <View style={styles.container}>
-      <View>
        <Text style={styles.sectionHeading}>Sound Effects</Text>
+       <View style={styles.soundsContainer}>
        {sounds.map((sound, index) => (
-        <View key={index}>
-          <Text style={styles.buttonText}>{sound.label}</Text>
+        <View key={index} style={styles.soundItem}>
+          <Text style={styles.soundLabel}>{sound.label}</Text>
           <Pressable
             style={styles.button}
             onPress={() => {
@@ -178,6 +287,30 @@ export default function App() {
       </View>
       <StatusBar style="auto" />
     </View>
+
+
+  {/* recording effect view */}
+    <View style={styles.container2}>
+    <Text style={styles.sectionHeading}>Audio Recordings</Text>
+
+   
+    <Button
+    title={recordings.length > 0 ? 'Stop Recording' : 'Start Recording'}
+    onPress={recordings.length > 0 ? stopRecording : startRecording}
+  />
+  {recordingUris.map((uri, index) => (
+    <View key={index} style={styles.recordingItem}>
+      <Text style={styles.recordingLabel}>{`Recording ${index + 1}`}</Text>
+      <Button
+        title="Play"
+        onPress={() => playRecording(index)}
+      />
+      <Text style={styles.recordingStatus}>Status: {playbacks[index] ? 'Playing' : 'Stopped'}</Text>
+    </View>
+  ))}
+    </View>
+
+    </ScrollView>
   );
 }
 
