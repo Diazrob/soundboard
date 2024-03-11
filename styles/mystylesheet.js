@@ -9,9 +9,10 @@ const styles = StyleSheet.create({
   },
   container2: {
     flex: 1,
-    backgroundColor: '#C1C1C1',
+    backgroundColor: '#283747',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: 20,
   },
   button: {
     backgroundColor: '#D3D3D3',
@@ -24,15 +25,55 @@ const styles = StyleSheet.create({
     backgroundColor: '#3498db',
     borderRadius: 5,
 },
+
 buttonText: {
     fontSize: 24,
 },
+recordingButton: {
+  backgroundColor: 'white',
+  border: 0,
+  borderRadius: 56,
+  color: 'black',
+},
 soundLabel: {
-  fontSize: 30,
+  fontSize: 29,
+  fontWeight: 'bold',
 },
 sectionHeading: {
-  fontSize: 40,
-  marginBottom: 8,
+  backgroundColor: '#202020',
+    borderRadius: 10,
+    textAlign: 'center',
+    flexDirection:'row', 
+    alignItems:'center', 
+    justifyContent:'center',
+},
+sectionHeading2: {
+  backgroundColor: 'white',
+    borderRadius: 10,
+    textAlign: 'center',
+    flexDirection:'row', 
+    alignItems:'center', 
+    justifyContent:'center',
+    marginVertical: 10,
+},
+titleText: {
+  color: 'white',
+  fontSize: 35,
+  paddingHorizontal: 20,
+  paddingVertical: 10,
+},
+titleText2: {
+  color: 'black',
+  fontSize: 35,
+  paddingHorizontal: 20,
+  paddingVertical: 10,
+},
+audioStatus :{
+  fontSize: 20,
+},
+audioStatus2 :{
+  fontSize: 20,
+  color: '#82E0AA'
 },
 scrollArea: {
   marginVertical: 60,
@@ -48,6 +89,15 @@ soundsContainer: {
 soundItem: {
 flexBasis: '35%',
  marginVertical: 10,
+},
+recordingItem: {
+  flexBasis: '35%',
+  marginVertical: 10,
+},
+recordingLabel: {
+  fontSize: 29,
+  fontWeight:'bold',
+  color: 'white',
 }
 });
 

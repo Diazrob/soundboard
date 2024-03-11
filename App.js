@@ -5,7 +5,7 @@ import * as SQLite from 'expo-sqlite';
 import styles from './styles/mystylesheet';
 import { useState, useEffect } from 'react';
 import { Audio } from 'expo-av';
-import { SoundButton} from './components/soundButton';
+
 
 export default function App() {
 
@@ -27,73 +27,88 @@ export default function App() {
   const [db, setDb] = useState(null);
   const [updateItems, forceUpdate] = useState(null);
 
-
+  const [recording, setRecording] = useState([]);
   const [recordings, setRecordings] = useState([]);
   const [recordingUris, setRecordingUris] = useState([]);
   const [playbacks, setPlaybacks] = useState([]);
   const [permissionsResponse, requestPermission] = Audio.usePermissions();
   //#endregion
 
-//#region connect to the database
+// #region connect to the database
   
-  // useEffect(() => {
-  //   let db = null;
-  //   if (Platform.OS === 'web') {
-  //     db = {
-  //       transaction: () => {
-  //         return {
-  //           executeSql: () => {}
-  //         }
-  //       }
-  //     }
-  //   } else {
-  //     db = SQLite.openDatabase('myrecordings.db');
-  //   }
-  //   setDb(db);
+  useEffect(() => {
+    let db = null;
+    if (Platform.OS === 'web') {
+      db = {
+        transaction: () => {
+          return {
+            executeSql: () => {}
+          }
+        }
+      }
+    } else {
+      db = SQLite.openDatabase('myrecordings.db');
+    }
+    setDb(db);
 
-  //   // create tables if it doesn't exist.
-  //   db.transaction((rd) => {
-  //     rd.executeSql(
-  //       "create table if not exists recording (id integer primary key not null, item text);"
-  //     ), 
-  //       (_, error) => console.log(error),
-  //       () => console.log("Recording table exists or was created")
-  //   })
-  //   return () => { db ? db.close : undefined}
-  // },[])
+    // create tables if it doesn't exist.
+    db.transaction((rd) => {
+      rd.executeSql(
+        "create table if not exists recording (id integer primary key not null, item text);"
+      ), 
+        (_, error) => console.log(error),
+        () => console.log("Recording table exists or was created")
+    })
+    return () => { db ? db.close : undefined}
+  },[])
 
-  //   // executes when the items in the db changes
-  //   useEffect(()=> {
-  //     if (db) {
-  //       db.transaction(
-  //         (rd) => {
-  //           rd.executeSql(
-  //             "select * from recording",
-  //             [],
-  //             (_,{rows}) => setRecording(rows._array),
-  //             (_,error) => console.log(error)
-  //           ),
-  //             (_,error) => console.log(error),
-  //             () => console.log('recordings was reloaded')
-  //         }
-  //     )
-  //     }
-  //   },[db, updateItems]);
+    // executes when the items in the db changes
+    useEffect(()=> {
+      if (db) {
+        db.transaction(
+          (rd) => {
+            rd.executeSql(
+              "select * from recording",
+              [],
+              (_,{rows}) => setRecording(rows._array),
+              (_,error) => console.log(error)
+            ),
+              (_,error) => console.log(error),
+              () => console.log('recordings was reloaded')
+          }
+      )
+      }
+    },[db, updateItems]);
 
-  //   const addRecording = (item) => {
-  //     db.transaction(
-  //       (sd) => {
-  //         sd.executeSql(
-  //             "insert into recording (item) values (?)",
-  //             [item],
-  //             () => console.log("added ", item), // if it work
-  //             (_,error) => console.log(error)     // if it doesn't work
-  //         )
-  //     },
-  //     (_,error) => console.log('addRecord() failed', error),
-  //     forceUpdate(f => f+1 )
-  //     )
-  //   }
+    const addRecording = (item) => {
+      db.transaction(
+        (sd) => {
+          sd.executeSql(
+              "insert into recording (item) values (?)",
+              [item],
+              () => console.log("added ", item), // if it work
+              (_,error) => console.log(error)     // if it doesn't work
+          )
+      },
+      (_,error) => console.log('addRecord() failed', error),
+      forceUpdate(f => f+1 )
+      )
+    }
+
+    const deleteRecord = (id) => {
+      db.transaction(
+          (tx) => {
+              tx.executeSql(
+                  "delete from recording where id = ?",
+                  [id],
+                  () => console.log("deleted record ", id), // if it work
+                  (_, error) => console.log(error)     // if it doesn't work
+              )
+          },
+          (_, error) => console.log('deleteRecord() failed', error),
+          forceUpdate(f => f + 1)
+      )
+  }
 //#endregion
 
 const startRecording = async () => {
@@ -138,6 +153,7 @@ const stopRecording = async () => {
     const uri = lastRecording.getURI();
 
     setRecordingUris((prevUris)=> [...prevUris,uri]);
+    addRecording(uri);
 
     // forget the recording object
     setRecordings((prevRecordings) => prevRecordings.slice(0, -1));
@@ -256,7 +272,9 @@ useEffect(() => {
     <ScrollView style={styles.scrollArea}>
     {/* sound effect view */}
     <View style={styles.container}>
-       <Text style={styles.sectionHeading}>Sound Effects</Text>
+      <View style={styles.sectionHeading}>
+       <Text style={styles.titleText}>Sound Effects</Text>
+       </View>
        <View style={styles.soundsContainer}>
        {sounds.map((sound, index) => (
         <View key={index} style={styles.soundItem}>
@@ -281,7 +299,7 @@ useEffect(() => {
           >
             <Text style={styles.buttonText}>Stop</Text>
           </Pressable>
-          <Text style={styles.buttonText}>Status: {individualPlaybackStatus[index]}</Text>
+          <Text style={styles.audioStatus}>Status: {individualPlaybackStatus[index]}</Text>
         </View>
       ))}
       </View>
@@ -289,23 +307,36 @@ useEffect(() => {
     </View>
 
 
-  {/* recording effect view */}
+  {/* recording effect view */}   
     <View style={styles.container2}>
-    <Text style={styles.sectionHeading}>Audio Recordings</Text>
-
+      <View style={styles.sectionHeading2}>
+        <Text style={styles.titleText2}>Database Recordings</Text>
+    </View>
    
-    <Button
-    title={recordings.length > 0 ? 'Stop Recording' : 'Start Recording'}
+    <Pressable
+    style={styles.button}
     onPress={recordings.length > 0 ? stopRecording : startRecording}
-  />
-  {recordingUris.map((uri, index) => (
+    >
+    <Text style={styles.buttonText}>{recordings.length > 0 ? 'Stop Recording' : 'Start Recording'}</Text>
+    </Pressable>
+  {recording.map((uri, index) => (
     <View key={index} style={styles.recordingItem}>
       <Text style={styles.recordingLabel}>{`Recording ${index + 1}`}</Text>
-      <Button
-        title="Play"
+
+      <Pressable
+      style={styles.button}
         onPress={() => playRecording(index)}
-      />
-      <Text style={styles.recordingStatus}>Status: {playbacks[index] ? 'Playing' : 'Stopped'}</Text>
+      >
+        <Text style={styles.buttonText}>Play</Text>
+      </Pressable>
+
+      <Pressable
+      style={styles.button}
+        onPress={() => deleteRecord(index)}
+      >
+        <Text style={styles.buttonText}>Delete</Text>
+        </Pressable>
+      <Text style={styles.audioStatus2}>Status: {playbacks[index] ? 'Playing' : 'Stopped'}</Text>
     </View>
   ))}
     </View>
@@ -313,5 +344,3 @@ useEffect(() => {
     </ScrollView>
   );
 }
-
-
